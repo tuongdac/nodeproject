@@ -1,11 +1,14 @@
 const moment = require('moment');
-const {getUserId}  = require('../helper/token')
+const { getUserId } = require('../helper/token')
 
-const { getList, updateInvoice: handleUpdateInvoice, create,deleteOne, update, getSevenLastDate, getWeekList  } = require('../model/invoice.model');
-const { getUserById  } = require('../model/user.model'); 
+const { getList, updateInvoice: handleUpdateInvoice, create, deleteOne, update, getSevenLastDate, getWeekList } = require('../model/invoice.model');
+const { getUserById } = require('../model/user.model');
+
+
+const GMTCTOLERANCE = 0;
 const getListInvoice = async (req, res) => {
     try {
-        const {option} = req.query;
+        const { option } = req.query;
         const date = new Date();
         var fromdate = '';
         var todate = '';
@@ -13,40 +16,47 @@ const getListInvoice = async (req, res) => {
         const month = date.getMonth();
         const year = date.getFullYear()
         var condition = null;
-        if(option=='T'){
-            fromdate = new Date(year, month, day);
-            todate = new Date(year, month, day+1)
-            condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }else if(option=='L'){
-            fromdate = new Date(year, month, day-1);
-            todate = new Date(year, month, day)
-            condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }else if(option=='TM'){
-            fromdate = new Date(year, month, day-1);
-            todate = new Date(year, month, day)
-            condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }else if(option=='LM'){
-            fromdate = new Date(year, month, day-1);
-            todate = new Date(year, month, day)
-            condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }
-        else if(option=='TW'){
-            fromdate = moment().startOf('isoweek').toDate();
+        if (option == 'TW') {
+            fromdate =  moment().startOf('isoweek').toDate();
+            console.log(fromdate);
             todate = moment().endOf('isoweek').toDate();
-            todate.setDate(todate.getDate()-1);
+            todate.setDate(todate.getDate() - 1);
+            console.log(todate);
             condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }else if(option=='LW'){
+        } else if (option == 'LW') {
             fromdate = moment().subtract(1, 'weeks').startOf('isoweek').toDate();
             todate = moment().subtract(1, 'weeks').endOf('isoweek').toDate();
-            todate.setDate(todate.getDate()-1);
+            todate.setDate(todate.getDate() - 1);
             condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }else if(option=='MA'){
-            const {fromdate} = req.query;
+        } else if (option == 'TM') {
+            fromdate = new Date(year, month, 1,GMTCTOLERANCE);
             console.log(fromdate);
-            const {todate} =req.query;
+            // todate = new Date(year, month, 0)
+            condition = { createdAt: { $gte: fromdate, $lte: date } };
+        } else if (option == 'LM') {
+            fromdate = new Date(year, month-1, 1,GMTCTOLERANCE);
+            console.log(fromdate);
+            todate = new Date(year, month, 1,GMTCTOLERANCE);
+            console.log(todate);
             condition = { createdAt: { $gte: fromdate, $lte: todate } };
-        }     
-        console.log('condition:' ,condition);
+        }else if (option == 'TY') {
+            fromdate = new Date(year, 0, 1, GMTCTOLERANCE);
+            console.log(fromdate);
+            // todate = new Date(year, month, 0)
+            condition = { createdAt: { $gte: fromdate, $lte: date } };
+        } else if (option == 'LY') {
+            fromdate = new Date(year-1, 0, 1, GMTCTOLERANCE);
+            console.log(fromdate);
+            todate = new Date(year, 0, 1, GMTCTOLERANCE);
+            console.log(todate);
+            condition = { createdAt: { $gte: fromdate, $lte: todate } };
+        } else if (option == 'MA') {
+            const { fromdate } = req.query;
+            console.log(fromdate);
+            const { todate } = req.query;
+            condition = { createdAt: { $gte: fromdate, $lte: todate } };
+        }
+        console.log('condition:', condition);
         const invoices = await getList(condition);
         res.json({
             data: invoices,
@@ -60,24 +70,10 @@ const getListInvoice = async (req, res) => {
 
 const getSaleByDay = async (req, res) => {
     try {
-        console.log('getSaleByDay');
-        todate = new Date(moment().subtract(1, 'days'));
-        let sales = [];
-        let condition;
-        for(var i =0; i<=6; i++){
-            condition = [
-                { $match: {createdAt: { $gte: new Date(moment().subtract(i+1, 'days')), $lte: new Date(moment().subtract(i, 'days')) }} },
-                { $group: { _id: i+1, amount: { $sum: "$amount" } } }
-            ]
-            // condition = { createdAt: { $gte: new Date(moment().subtract(i+1, 'days')), $lte: new Date(moment().subtract(i, 'days')) } };
-            console.log('condition:' , condition);
-            const result = await getSevenLastDate(condition);
-            console.log('result:' , result);
-            console.log('sales:' , sales);
-            sales.push(result);
-        }
+        const result = await getSevenLastDate(null);
+        console.log('result:', result);
         res.json({
-            data: sales,
+            data: result,
         });
     } catch (error) {
         res.status(400).json({
@@ -86,20 +82,20 @@ const getSaleByDay = async (req, res) => {
     }
 }
 
-const getInvoice = async (req,res)=>{
+const getInvoice = async (req, res) => {
     try {
-        const {id} = req.params;
+        const { id } = req.params;
         deleteInvoice(id);
     } catch (error) {
-                res.status(400).json({
+        res.status(400).json({
             message: error.message,
         });
     }
 }
 
-const deleteInvoice = async (req,res)=>{
+const deleteInvoice = async (req, res) => {
     try {
-        const {id} = req.params;
+        const { id } = req.params;
         console.log('Delete Invoice: ' + id);
         deleteOne(id);
         res.status(200).json({
@@ -112,12 +108,12 @@ const deleteInvoice = async (req,res)=>{
     }
 }
 
-const createInvoice = async (req,res) =>{
+const createInvoice = async (req, res) => {
     try {
         const data = req.body;
         // const userid = getUserId(req,res);
         // const user = await getUserById(req.user.id);
-        console.log('req.user.name',req.user.name);
+        console.log('req.user.name', req.user.name);
         data.createUser = req.user.name;
         const invoice = await create(data);
         res.status(200).json({
